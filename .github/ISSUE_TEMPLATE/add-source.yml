@@ -1,0 +1,30 @@
+name: Add llms.txt source
+description: Suggest a new public llms.txt URL for the curated registry.
+title: "Add source: "
+labels:
+  - source-request
+body:
+  - type: input
+    id: label
+    attributes:
+      label: Source name
+      description: Product or docs name.
+      placeholder: Example: Stripe Docs
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: llms.txt URL
+      description: Direct public URL to the llms.txt file.
+      placeholder: https://example.com/llms.txt
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Why add this source?
+      description: Explain why this source belongs in the curated registry.
+      placeholder: Official product docs with a stable llms.txt endpoint.
+    validations:
+      required: true

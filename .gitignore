@@ -1,0 +1,8 @@
+node_modules/
+coverage/
+.smoke/
+.smoke-output/
+.smoke-run/
+registry-review.json
+registry-review.md
+.DS_Store
