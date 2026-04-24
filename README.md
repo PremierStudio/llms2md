@@ -188,6 +188,7 @@ The built-in source list lives in `sources.txt` and currently includes:
 | `claude` | Claude Docs | `https://platform.claude.com/llms.txt` |
 | `cloudflare` | Cloudflare Docs | `https://developers.cloudflare.com/llms.txt` |
 | `github` | GitHub Docs | `https://docs.github.com/llms.txt` |
+| `mcp` | Model Context Protocol Docs | `https://modelcontextprotocol.io/llms.txt` |
 | `nextjs` | Next.js Docs | `https://nextjs.org/llms.txt` |
 | `stripe` | Stripe Docs | `https://docs.stripe.com/llms.txt` |
 | `supabase` | Supabase Docs | `https://supabase.com/llms.txt` |
