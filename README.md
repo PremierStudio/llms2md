@@ -34,11 +34,15 @@ It is built for two kinds of use:
 - direct CLI mode for scripting
 - remote URLs and local files
 - curated built-in source registry
+- optional per-doc selection in the TUI
 - relative URL resolution
 - `.md`, `/index.md`, and `.html.md` fallback fetching
 - HTML to Markdown conversion with Turndown
 - nested or flat output modes
 - URL deduplication
+- managed install manifests for safe updates
+- update summaries with added, changed, removed, and unchanged docs
+- dry-run support for CLI update previews
 - partial-failure tolerant downloads
 - automated registry safety review for contributed sources
 - fully tested with 100% statement, line, function, and branch coverage in the included coverage config
@@ -120,15 +124,17 @@ Run `llms2md` with no arguments to open an arrow-key flow that lets you:
 - choose a curated source
 - paste any public `llms.txt` URL
 - point at a local file
+- install all docs or manually toggle specific docs on and off
 - choose current directory or a custom output directory
 - choose flat or nested output
+- review updates for existing managed installs before applying them
 
 ### Direct CLI
 
 Use direct mode when you already know what you want:
 
 ```bash
-llms2md <llms.txt url|file|registry slug> [output directory] [--flat]
+llms2md <llms.txt url|file|registry slug> [output directory] [--flat] [--dry-run]
 ```
 
 Examples:
@@ -138,7 +144,14 @@ llms2md stripe
 llms2md nextjs ./docs
 llms2md https://supabase.com/llms.txt ./vendor/supabase-docs
 llms2md ./llms.txt ./docs --flat
+llms2md mcp ./docs --dry-run
 ```
+
+CLI behavior:
+
+- fresh installs default to all docs
+- if the target directory already contains a managed install for the same source, CLI updates reuse the previous selected doc set
+- `--dry-run` fetches and compares without writing files
 
 ## How It Works
 
@@ -162,6 +175,8 @@ ${url}.html.md
 - a nested path-preserving structure
 - a flat output directory when `--flat` is used
 
+When `llms2md` writes into a directory, it also stores a hidden `.llms2md.json` manifest so future runs can safely understand which files it manages.
+
 ## Output Behavior
 
 Default mode preserves URL structure:
@@ -177,6 +192,33 @@ Flat mode writes everything at the root:
 ./docs-flat/reference.md
 ./docs-flat/api-auth.md
 ```
+
+## Selection And Updating
+
+`llms2md` now supports two higher-level workflows beyond a one-shot import.
+
+### Install Only Part Of A Docs Set
+
+In the TUI, after choosing a source, you can:
+
+- install all docs
+- reuse the previous selection for an existing managed install
+- open a checkbox list where all docs start selected and you toggle specific docs on or off
+
+This is useful when you only want a subset of a very large docs site.
+
+### Update An Existing Install
+
+If the target directory already contains a managed install for the same source, `llms2md` compares the newly fetched docs against the existing managed files and computes:
+
+- added docs
+- changed docs
+- removed docs
+- unchanged docs
+
+In the TUI, you can review those groups before applying the update.
+
+In direct CLI mode, updates apply automatically, and `--dry-run` lets you preview the update without writing anything.
 
 ## Built-In Curated Sources
 

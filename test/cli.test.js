@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@inquirer/prompts", () => ({
+  checkbox: vi.fn(),
   confirm: vi.fn(),
   input: vi.fn(),
   select: vi.fn(),
@@ -82,9 +83,10 @@ afterAll(() => {
 
 describe("parseArgs", () => {
   it("parses flags and positional arguments", () => {
-    const result = cli.parseArgs(["stripe", "./docs", "--flat", "--list-sources"]);
+    const result = cli.parseArgs(["stripe", "./docs", "--flat", "--dry-run", "--list-sources"]);
 
     expect(result).toEqual({
+      dryRun: true,
       flat: true,
       help: false,
       input: "stripe",
@@ -262,7 +264,7 @@ describe("core helpers", () => {
   it("prints banner, run summary, and registry", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     cli.printBanner();
-    cli.printRunSummary({ flat: false, outputDir: "/tmp/docs", sourceLabel: "Stripe" });
+    cli.printRunSummary({ flat: false, outputDir: "/tmp/docs", selectionLabel: "all docs", sourceLabel: "Stripe" });
     cli.printRegistry([
       { label: "B Source", slug: "b", url: "https://b.test/llms.txt" },
       { label: "A Source", slug: "aa", url: "https://a.test/llms.txt" },
@@ -315,6 +317,126 @@ describe("source resolution and registry loading", () => {
   it("parses URLs safely", () => {
     expect(cli.tryParseUrl("https://example.com").href).toBe("https://example.com/");
     expect(cli.tryParseUrl("not a url")).toBeNull();
+  });
+
+  it("loads and writes install manifests", async () => {
+    const tempDir = await createTempDir();
+    const manifest = {
+      managedFiles: ["docs/page.md"],
+      selectedUrls: ["https://example.com/page"],
+      source: { label: "Example", url: "https://example.com/llms.txt" },
+      version: 1,
+    };
+
+    expect(cli.getManifestPath(tempDir)).toBe(path.join(tempDir, cli.MANIFEST_FILENAME));
+    expect(await cli.loadInstallManifest(tempDir)).toBeNull();
+
+    await cli.writeInstallManifest(tempDir, manifest);
+
+    expect(await cli.loadInstallManifest(tempDir)).toEqual(manifest);
+  });
+
+  it("detects managed install state and existing files", async () => {
+    const tempDir = await createTempDir();
+    const source = { label: "Example", url: new URL("https://example.com/llms.txt") };
+    const manifest = {
+      managedFiles: ["docs/page.md"],
+      selectedUrls: ["https://example.com/page"],
+      source: { label: "Example", url: source.url.href },
+      version: 1,
+    };
+
+    await writeFile(path.join(tempDir, "docs", "page.md"), "# Page\n");
+    expect(await cli.directoryHasManagedCandidates(tempDir)).toBe(true);
+    expect(cli.isManagedInstallForSource(manifest, source)).toBe(true);
+    expect(cli.isManagedInstallForSource(null, source)).toBe(false);
+
+    await cli.writeInstallManifest(tempDir, manifest);
+    const state = await cli.inspectInstallState(tempDir, source, "cli");
+    expect(state.sameSource).toBe(true);
+
+    const otherState = await cli.inspectInstallState(
+      path.join(tempDir, "other"),
+      source,
+      "cli",
+    );
+    expect(otherState.hasFiles).toBe(false);
+
+    expect(await cli.readManagedContents(tempDir, ["docs/page.md", "missing.md"])).toEqual(
+      new Map([["docs/page.md", "# Page\n"]]),
+    );
+  });
+
+  it("rejects conflicting managed installs and can cancel unmanaged tui state", async () => {
+    const tempDir = await createTempDir();
+    const source = { label: "Example", url: new URL("https://example.com/llms.txt") };
+    await cli.writeInstallManifest(tempDir, {
+      managedFiles: ["docs/page.md"],
+      selectedUrls: [],
+      source: { label: "Other", url: "https://other.example.com/llms.txt" },
+      version: 1,
+    });
+
+    await expect(cli.inspectInstallState(tempDir, source, "cli")).rejects.toThrow("already managed");
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const tuiConflict = await cli.inspectInstallState(tempDir, source, "tui");
+    expect(tuiConflict.cancelled).toBe(true);
+    expect(logSpy).toHaveBeenCalled();
+
+    const unmanagedDir = await createTempDir();
+    await writeFile(path.join(unmanagedDir, "notes.md"), "# Notes\n");
+    vi.mocked(prompts.confirm).mockResolvedValueOnce(false);
+    const cancelled = await cli.inspectInstallState(unmanagedDir, source, "tui");
+    expect(cancelled.cancelled).toBe(true);
+
+    await cli.writeInstallManifest(path.join(tempDir, "fallback"), {
+      managedFiles: [],
+      selectedUrls: [],
+      source: {},
+      version: 1,
+    });
+    await expect(cli.inspectInstallState(path.join(tempDir, "fallback"), source, "cli")).rejects.toThrow(
+      "another llms2md install",
+    );
+  });
+
+  it("resolves selection state for cli and tui flows", async () => {
+    const source = { label: "Example", url: new URL("https://example.com/llms.txt") };
+    const entries = [
+      { title: "One", url: new URL("https://example.com/one") },
+      { title: "Two", url: new URL("https://example.com/two") },
+    ];
+    const manifest = {
+      selectedUrls: ["https://example.com/two"],
+      source: { label: "Example", url: source.url.href },
+    };
+
+    const cliState = await cli.resolveSelectionState({ mode: "cli" }, source, entries, manifest);
+    expect(cliState.entries).toHaveLength(1);
+    expect(cliState.label).toContain("previous selection");
+
+    vi.mocked(prompts.select).mockResolvedValueOnce(cli.SELECTION_MANUAL);
+    vi.mocked(prompts.checkbox).mockResolvedValueOnce(["https://example.com/one"]);
+    const tuiState = await cli.resolveSelectionState({ mode: "tui" }, source, entries, manifest);
+    expect(tuiState.entries).toHaveLength(1);
+    expect(tuiState.label).toContain("manual selection");
+
+    vi.mocked(prompts.select).mockResolvedValueOnce(cli.SELECTION_PREVIOUS);
+    const previousState = await cli.resolveSelectionState({ mode: "tui" }, source, entries, manifest);
+    expect(previousState.entries).toHaveLength(1);
+    expect(previousState.label).toContain("previous selection");
+
+    vi.mocked(prompts.select).mockResolvedValueOnce(cli.SELECTION_ALL);
+    const allState = await cli.resolveSelectionState({ mode: "tui" }, source, entries, manifest);
+    expect(allState.entries).toHaveLength(2);
+
+    expect(cli.filterEntriesByUrls(entries, ["https://example.com/two"])).toEqual([entries[1]]);
+    expect(cli.filterEntriesByUrls(entries, [])).toEqual(entries);
+    expect(cli.formatEntryDescription(entries[0])).toContain("one");
+    expect(cli.formatEntryDescription({ url: new URL("https://example.com") })).toContain("/");
+    expect(cli.formatEntryDescription({ url: { protocol: "https:", pathname: "" } })).toContain("/");
+    expect(cli.formatEntryDescription({ url: pathToFileURL("/tmp/local/file.md") })).toContain("/tmp/local/file.md");
   });
 });
 
@@ -450,6 +572,7 @@ describe("interactive flow", () => {
     ]);
 
     expect(result).toEqual({
+      dryRun: false,
       flat: false,
       input: "stripe",
       mode: "tui",
@@ -482,6 +605,40 @@ describe("interactive flow", () => {
     expect(prompts.input.mock.calls[1][0].validate("./docs")).toBe(true);
     expect(logSpy).toHaveBeenCalled();
   });
+
+  it("chooses docs manually and supports review actions", async () => {
+    const entries = [
+      { title: "One", url: new URL("https://example.com/one") },
+      { title: "Two", url: new URL("https://example.com/two") },
+    ];
+
+    vi.mocked(prompts.checkbox).mockResolvedValueOnce(["https://example.com/two"]);
+    expect(await cli.chooseEntriesManually(entries)).toEqual([entries[1]]);
+    expect(prompts.checkbox.mock.calls[0][0].validate([])).toBe("Select at least one doc.");
+    expect(prompts.checkbox.mock.calls[0][0].validate(["x"])).toBe(true);
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.mocked(prompts.select)
+      .mockResolvedValueOnce(cli.UPDATE_ACTION_CHANGED)
+      .mockResolvedValueOnce(cli.UPDATE_ACTION_ADDED)
+      .mockResolvedValueOnce(cli.UPDATE_ACTION_REMOVED)
+      .mockResolvedValueOnce(cli.UPDATE_ACTION_APPLY);
+
+    expect(
+      await cli.reviewInstallPlan({
+        added: ["added.md"],
+        changed: ["changed.md"],
+        removed: ["removed.md"],
+        totalChanges: 3,
+      }),
+    ).toBe(true);
+    expect(logSpy).toHaveBeenCalled();
+
+    vi.mocked(prompts.select).mockResolvedValueOnce(cli.UPDATE_ACTION_CANCEL);
+    expect(
+      await cli.reviewInstallPlan({ added: [], changed: [], removed: [], totalChanges: 0 }),
+    ).toBe(false);
+  });
 });
 
 describe("import execution", () => {
@@ -507,12 +664,13 @@ describe("import execution", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const result = await cli.runImport(
-      { flat: false, input: inputPath, mode: "cli", outputDir },
+      { dryRun: false, flat: false, input: inputPath, mode: "cli", outputDir },
       [],
     );
 
     expect(result).toEqual({ failureCount: 2, successCount: 1 });
     expect(await fs.readFile(path.join(outputDir, "pages", "guide.md"), "utf8")).toContain("# Guide");
+    expect(await cli.loadInstallManifest(outputDir)).not.toBeNull();
     expect(logSpy).toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalled();
   });
@@ -527,7 +685,7 @@ describe("import execution", () => {
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const result = await cli.runImport(
-      { flat: false, input: inputPath, mode: "tui", outputDir },
+      { dryRun: false, flat: false, input: inputPath, mode: "tui", outputDir },
       [],
     );
 
@@ -535,9 +693,66 @@ describe("import execution", () => {
     expect(logSpy).toHaveBeenCalled();
   });
 
+  it("returns cancelled when managed install inspection cancels the run", async () => {
+    const tempDir = await createTempDir();
+    const inputPath = path.join(tempDir, "llms.txt");
+    const outputDir = path.join(tempDir, "docs");
+    await writeFile(inputPath, "[Guide](./pages/guide)\n");
+    await writeFile(path.join(tempDir, "pages", "guide.md"), "# Guide\n");
+    await cli.writeInstallManifest(outputDir, {
+      generatedAt: new Date().toISOString(),
+      layout: "nested",
+      managedFiles: ["pages/guide.md"],
+      selectedUrls: [],
+      source: { label: "Other", url: "https://other.example.com/llms.txt" },
+      version: 1,
+    });
+
+    const result = await cli.runImport(
+      { dryRun: false, flat: false, input: inputPath, mode: "tui", outputDir },
+      [],
+    );
+
+    expect(result).toEqual({ cancelled: true, failureCount: 0, successCount: 0 });
+  });
+
+  it("supports tui update review cancel and already-up-to-date flow", async () => {
+    const tempDir = await createTempDir();
+    const inputPath = path.join(tempDir, "llms.txt");
+    const outputDir = path.join(tempDir, "docs");
+    await writeFile(inputPath, "[Guide](./pages/guide)\n");
+    await writeFile(path.join(tempDir, "pages", "guide.md"), "# Guide\n");
+    await cli.writeInstallManifest(outputDir, {
+      generatedAt: new Date().toISOString(),
+      layout: "nested",
+      managedFiles: ["pages/guide.md"],
+      selectedUrls: [pathToFileURL(path.join(tempDir, "pages", "guide")).href],
+      source: { label: inputPath, url: pathToFileURL(inputPath).href },
+      version: 1,
+    });
+    await writeFile(path.join(outputDir, "pages", "guide.md"), "# Old Guide\n");
+
+    vi.mocked(prompts.select)
+      .mockResolvedValueOnce(cli.SELECTION_PREVIOUS)
+      .mockResolvedValueOnce(cli.UPDATE_ACTION_CANCEL);
+    const cancelResult = await cli.runImport(
+      { dryRun: false, flat: false, input: inputPath, mode: "tui", outputDir },
+      [],
+    );
+    expect(cancelResult).toEqual({ cancelled: true, failureCount: 0, successCount: 1 });
+
+    await writeFile(path.join(outputDir, "pages", "guide.md"), "# Guide\n");
+    vi.mocked(prompts.select).mockResolvedValueOnce(cli.SELECTION_PREVIOUS);
+    const sameResult = await cli.runImport(
+      { dryRun: false, flat: false, input: inputPath, mode: "tui", outputDir },
+      [],
+    );
+    expect(sameResult).toEqual({ failureCount: 0, successCount: 1 });
+  });
+
   it("throws when the llms source cannot be loaded", async () => {
     await expect(
-      cli.runImport({ flat: false, input: "/missing/llms.txt", mode: "cli", outputDir: "/tmp/out" }, []),
+      cli.runImport({ dryRun: false, flat: false, input: "/missing/llms.txt", mode: "cli", outputDir: "/tmp/out" }, []),
     ).rejects.toThrow("Failed to load llms.txt");
   });
 
@@ -548,7 +763,7 @@ describe("import execution", () => {
 
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await cli.runImport(
-      { flat: true, input: inputPath, mode: "cli", outputDir: path.join(tempDir, "docs") },
+      { dryRun: false, flat: true, input: inputPath, mode: "cli", outputDir: path.join(tempDir, "docs") },
       [],
     );
 
@@ -569,7 +784,7 @@ describe("import execution", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const result = await cli.runImport(
-      { flat: false, input: inputPath, mode: "cli", outputDir },
+      { dryRun: false, flat: false, input: inputPath, mode: "cli", outputDir },
       [],
     );
 
@@ -588,7 +803,7 @@ describe("import execution", () => {
       { title: "Page", url: pathToFileURL(path.join(tempDir, "page")) },
       1,
       1,
-      { flat: true, mode: "cli", outputDir },
+      { dryRun: false, flat: true, mode: "cli", outputDir },
       { localRootDir: tempDir },
       usedPaths,
     );
@@ -608,13 +823,145 @@ describe("import execution", () => {
       { title: "Page", url: pathToFileURL(exactPath) },
       1,
       1,
-      { flat: true, mode: "cli", outputDir },
+      { dryRun: false, flat: true, mode: "cli", outputDir },
       { localRootDir: tempDir },
       usedPaths,
     );
 
     expect(result.ok).toBe(true);
     expect(await fs.readFile(path.join(outputDir, "page.md"), "utf8")).toContain("# Page");
+  });
+
+  it("builds and applies update plans for managed installs", async () => {
+    const tempDir = await createTempDir();
+    const outputDir = path.join(tempDir, "docs");
+    await writeFile(path.join(outputDir, "keep.md"), "same\n");
+    await writeFile(path.join(outputDir, "change.md"), "old\n");
+    await writeFile(path.join(outputDir, "remove.md"), "gone\n");
+
+    const plan = await cli.buildInstallPlan(
+      outputDir,
+      [
+        { content: "same\n", label: "[1/2]", ok: true, path: "keep.md", url: "https://example.com/keep", via: "" },
+        { content: "new\n", label: "[2/2]", ok: true, path: "change.md", url: "https://example.com/change", via: "" },
+      ],
+      {
+        managedFiles: ["keep.md", "change.md", "remove.md"],
+        source: { url: "https://example.com/llms.txt" },
+      },
+      { url: new URL("https://example.com/llms.txt") },
+      false,
+    );
+
+    expect(plan.added).toEqual([]);
+    expect(plan.changed).toEqual(["change.md"]);
+    expect(plan.removed).toEqual(["remove.md"]);
+    expect(plan.unchanged).toEqual(["keep.md"]);
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    cli.printChangeSummary(plan, true);
+    cli.printPathList("Changed", plan.changed);
+    cli.printPathList("Many", Array.from({ length: 30 }, (_, index) => `item-${index}`));
+    expect(cli.formatVia("https://example.com/guide.md")).toContain("via");
+    expect(cli.formatVia("")).toBe("");
+
+    await cli.applyInstallPlan(outputDir, plan.docs, plan);
+    expect(await fs.readFile(path.join(outputDir, "change.md"), "utf8")).toBe("new\n");
+    await expect(fs.readFile(path.join(outputDir, "remove.md"), "utf8")).rejects.toThrow();
+    expect(logSpy).toHaveBeenCalled();
+
+    const manifest = cli.createInstallManifest({
+      docs: plan.docs,
+      manifest: { managedFiles: ["keep.md", "change.md", "remove.md"] },
+      options: { flat: false },
+      plan,
+      selectedEntries: [{ url: new URL("https://example.com/keep") }],
+      source: { label: "Example", url: new URL("https://example.com/llms.txt") },
+    });
+
+    expect(manifest.managedFiles).toEqual(["change.md", "keep.md"]);
+
+    const partialManifest = cli.createInstallManifest({
+      docs: plan.docs,
+      manifest: { managedFiles: ["keep.md", "change.md", "remove.md"] },
+      options: { flat: false },
+      plan: { ...plan, hasFailures: true },
+      selectedEntries: [{ url: new URL("https://example.com/keep") }],
+      source: { label: "Example", url: new URL("https://example.com/llms.txt") },
+    });
+
+    expect(partialManifest.managedFiles).toContain("remove.md");
+    expect(partialManifest.layout).toBe("nested");
+
+    const flatManifest = cli.createInstallManifest({
+      docs: plan.docs,
+      manifest: null,
+      options: { flat: true },
+      plan,
+      selectedEntries: [{ url: new URL("https://example.com/keep") }],
+      source: { label: "Example", url: new URL("https://example.com/llms.txt") },
+    });
+
+    expect(flatManifest.layout).toBe("flat");
+  });
+
+  it("supports dry-run updates and previous selection reuse", async () => {
+    const tempDir = await createTempDir();
+    const inputPath = path.join(tempDir, "llms.txt");
+    const outputDir = path.join(tempDir, "docs");
+
+    await writeFile(inputPath, "[Guide](./pages/guide)\n[Other](./pages/other)\n");
+    await writeFile(path.join(tempDir, "pages", "guide.md"), "# Guide\n");
+    await writeFile(path.join(tempDir, "pages", "other.md"), "# Other\n");
+    await cli.writeInstallManifest(outputDir, {
+      generatedAt: new Date().toISOString(),
+      layout: "nested",
+      managedFiles: ["pages/guide.md"],
+      selectedUrls: [pathToFileURL(path.join(tempDir, "pages", "guide")).href],
+      source: { label: inputPath, url: pathToFileURL(inputPath).href },
+      version: 1,
+    });
+    await writeFile(path.join(outputDir, "pages", "guide.md"), "# Guide\n");
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const result = await cli.runImport(
+      { dryRun: true, flat: false, input: inputPath, mode: "cli", outputDir },
+      [],
+    );
+
+    expect(result).toEqual({ failureCount: 0, successCount: 1 });
+    expect(logSpy.mock.calls.flat().join(" ")).toContain("Dry run complete");
+  });
+
+  it("resolves entry fetch failures and processLink passthrough failures", async () => {
+    const tempDir = await createTempDir();
+    const entry = { title: "Missing", url: pathToFileURL(path.join(tempDir, "missing")) };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const resolved = await cli.resolveEntryFetch(entry, 1, 1, { flat: false }, { localRootDir: tempDir }, new Set());
+    expect(resolved.ok).toBe(false);
+
+    const processed = await cli.processLink(entry, 1, 1, { flat: false, outputDir: tempDir }, { localRootDir: tempDir }, new Set());
+    expect(processed.ok).toBe(false);
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("handles directory helper fallbacks", async () => {
+    const tempDir = await createTempDir();
+    expect(await cli.directoryHasManagedCandidates(path.join(tempDir, "missing-dir"))).toBe(false);
+
+    const outputDir = path.join(tempDir, "docs");
+    await writeFile(path.join(outputDir, "nested", "page.md"), "# Page\n");
+    await cli.pruneEmptyDirectories(outputDir, path.join(outputDir, "nested"));
+    expect(await fs.readFile(path.join(outputDir, "nested", "page.md"), "utf8")).toContain("# Page");
+
+    await fs.rm(path.join(outputDir, "nested", "page.md"), { force: true });
+    await cli.pruneEmptyDirectories(outputDir, path.join(outputDir, "nested"));
+    await expect(fs.readdir(path.join(outputDir, "nested"))).rejects.toThrow();
+
+    const readdirSpy = vi.spyOn(fs, "readdir").mockRejectedValueOnce(new Error("boom"));
+    await cli.pruneEmptyDirectories(outputDir, path.join(outputDir, "missing"));
+    readdirSpy.mockRestore();
   });
 });
 
