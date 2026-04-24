@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/PremierStudio/llms2md/compare/v1.1.0...v1.1.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* resolve symlinked bin entrypoints ([ea11096](https://github.com/PremierStudio/llms2md/commit/ea11096a0d6f6ece9ee5fa9bc8deacdfc3d36150))
+
 # [1.1.0](https://github.com/PremierStudio/llms2md/compare/v1.0.0...v1.1.0) (2026-04-24)
 
 
