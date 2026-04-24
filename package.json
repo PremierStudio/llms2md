@@ -12,7 +12,9 @@
     "url": "https://github.com/PremierStudio/llms2md/issues"
   },
   "type": "module",
-  "bin": "./index.js",
+  "bin": {
+    "llms2md": "./index.js"
+  },
   "keywords": [
     "llms-txt",
     "markdown",
