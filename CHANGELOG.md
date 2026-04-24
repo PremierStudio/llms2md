@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/PremierStudio/llms2md/compare/v1.2.0...v1.2.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* add back navigation to doc selection ([65de20b](https://github.com/PremierStudio/llms2md/commit/65de20bea050c74e05bb7c18491fe524920f62b7))
+
 # [1.2.0](https://github.com/PremierStudio/llms2md/compare/v1.1.1...v1.2.0) (2026-04-24)
 
 

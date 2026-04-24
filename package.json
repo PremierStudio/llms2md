@@ -1,6 +1,6 @@
 {
   "name": "llms2md",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Turn an llms.txt file into a local Markdown docs repository.",
   "license": "MIT",
   "repository": {
