@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/PremierStudio/llms2md/compare/v1.1.1...v1.2.0) (2026-04-24)
+
+
+### Features
+
+* add managed updates and doc selection ([477e5d9](https://github.com/PremierStudio/llms2md/commit/477e5d9536f0cbda79a0ef7a3e185e2e9558d8b8))
+
 ## [1.1.1](https://github.com/PremierStudio/llms2md/compare/v1.1.0...v1.1.1) (2026-04-24)
 
 
