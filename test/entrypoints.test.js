@@ -1,4 +1,8 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const originalArgv = [...process.argv];
@@ -10,6 +14,10 @@ afterEach(() => {
   process.argv = [...originalArgv];
   process.exitCode = undefined;
 });
+
+async function createTempDir() {
+  return fs.mkdtemp(path.join(os.tmpdir(), "llms2md-entry-test-"));
+}
 
 describe("index.js entrypoint", () => {
   it("detects direct execution and runs the CLI", async () => {
@@ -29,6 +37,17 @@ describe("index.js entrypoint", () => {
     expect(await module.runCli("file:///tmp/index.js", "/tmp/index.js")).toBe(true);
     expect(main).toHaveBeenCalledTimes(1);
     expect(handleMainError).not.toHaveBeenCalled();
+  });
+
+  it("treats a symlinked bin path as direct execution", async () => {
+    const module = await import("../index.js");
+    const tempDir = await createTempDir();
+    const symlinkPath = path.join(tempDir, "llms2md-bin");
+    const realPath = path.resolve("/Users/blitz/Development/PremierStudio/llms2md/index.js");
+
+    await fs.symlink(realPath, symlinkPath);
+
+    expect(module.isDirectExecution(pathToFileURL(realPath).href, symlinkPath)).toBe(true);
   });
 
   it("handles CLI startup errors and skips when not direct", async () => {
@@ -66,6 +85,19 @@ describe("registry review entrypoint", () => {
     expect(await module.runRegistryReview("file:///tmp/review.mjs", "/tmp/review.mjs")).toBe(true);
     expect(main).toHaveBeenCalledTimes(1);
     expect(handleMainError).not.toHaveBeenCalled();
+  });
+
+  it("treats a symlinked registry bin path as direct execution", async () => {
+    const module = await import("../scripts/check-registry-safety.mjs");
+    const tempDir = await createTempDir();
+    const symlinkPath = path.join(tempDir, "registry-bin");
+    const realPath = path.resolve(
+      "/Users/blitz/Development/PremierStudio/llms2md/scripts/check-registry-safety.mjs",
+    );
+
+    await fs.symlink(realPath, symlinkPath);
+
+    expect(module.isDirectExecution(pathToFileURL(realPath).href, symlinkPath)).toBe(true);
   });
 
   it("handles registry review startup errors and skips when not direct", async () => {
