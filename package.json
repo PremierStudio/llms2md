@@ -13,7 +13,7 @@
   },
   "type": "module",
   "bin": {
-    "llms2md": "./index.js"
+    "llms2md": "index.js"
   },
   "keywords": [
     "llms-txt",
