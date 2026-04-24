@@ -431,6 +431,17 @@ describe("source resolution and registry loading", () => {
     const allState = await cli.resolveSelectionState({ mode: "tui" }, source, entries, manifest);
     expect(allState.entries).toHaveLength(2);
 
+    vi.mocked(prompts.select)
+      .mockResolvedValueOnce(cli.SELECTION_MANUAL)
+      .mockResolvedValueOnce(cli.SELECTION_ALL);
+    vi.mocked(prompts.checkbox).mockResolvedValueOnce([cli.MANUAL_SELECTION_BACK]);
+    const backToMenuState = await cli.resolveSelectionState({ mode: "tui" }, source, entries, manifest);
+    expect(backToMenuState.entries).toHaveLength(2);
+
+    vi.mocked(prompts.select).mockResolvedValueOnce(cli.SELECTION_CANCEL);
+    const cancelState = await cli.resolveSelectionState({ mode: "tui" }, source, entries, manifest);
+    expect(cancelState.cancelled).toBe(true);
+
     expect(cli.filterEntriesByUrls(entries, ["https://example.com/two"])).toEqual([entries[1]]);
     expect(cli.filterEntriesByUrls(entries, [])).toEqual(entries);
     expect(cli.formatEntryDescription(entries[0])).toContain("one");
@@ -614,8 +625,13 @@ describe("interactive flow", () => {
 
     vi.mocked(prompts.checkbox).mockResolvedValueOnce(["https://example.com/two"]);
     expect(await cli.chooseEntriesManually(entries)).toEqual([entries[1]]);
+    expect(prompts.checkbox.mock.calls[0][0].choices[0].value).toBe(cli.MANUAL_SELECTION_BACK);
     expect(prompts.checkbox.mock.calls[0][0].validate([])).toBe("Select at least one doc.");
+    expect(prompts.checkbox.mock.calls[0][0].validate([cli.MANUAL_SELECTION_BACK])).toBe(true);
     expect(prompts.checkbox.mock.calls[0][0].validate(["x"])).toBe(true);
+
+    vi.mocked(prompts.checkbox).mockResolvedValueOnce([cli.MANUAL_SELECTION_BACK]);
+    expect(await cli.chooseEntriesManually(entries)).toBeNull();
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.mocked(prompts.select)

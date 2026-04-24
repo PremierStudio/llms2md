@@ -109,6 +109,12 @@ Use a local file:
 npx llms2md ./llms.txt ./docs
 ```
 
+Preview an update without writing changes:
+
+```bash
+npx llms2md mcp ./docs --dry-run
+```
+
 List built-in curated sources:
 
 ```bash
@@ -220,6 +226,8 @@ In the TUI, you can review those groups before applying the update.
 
 In direct CLI mode, updates apply automatically, and `--dry-run` lets you preview the update without writing anything.
 
+When a managed install already exists, the CLI reuses the previous selected doc subset automatically so updates stay scoped to what you originally installed.
+
 ## Built-In Curated Sources
 
 The built-in source list lives in `sources.txt` and currently includes:
@@ -295,6 +303,8 @@ Examples:
 
 The release workflow is intentionally gated behind the `NPM_PUBLISH_ENABLED` repository variable so the repo can be configured safely before the first live publish.
 
+It also skips obvious docs-only and test-only pushes to `main`, so editing files like `README.md`, `CONTRIBUTING.md`, or `test/**` by themselves will not start a release workflow run.
+
 ### One-Time npm Setup
 
 Because npm trusted publishing can only be configured after the package already exists on npm, the initial bootstrap is:
@@ -350,14 +360,17 @@ The package includes:
 - CLI/core tests
 - registry reviewer tests
 - executable entrypoint tests
+- managed install and update-flow tests
+- selection-flow tests
 
 Current suite status:
 
-- 60 passing tests
 - 100% statements
 - 100% branches
 - 100% functions
 - 100% lines
+
+The exact test count changes as features land, so the CI and coverage badges at the top of this README are the source of truth.
 
 ## Repository Layout
 
