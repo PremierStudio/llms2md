@@ -21,10 +21,11 @@
   ],
   "files": [
     "index.js",
+    "CHANGELOG.md",
+    "LICENSE",
     "lib",
     "sources.txt",
-    "README.md",
-    "LICENSE"
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"
@@ -36,7 +37,8 @@
     "check": "node --check index.js",
     "check:registry": "node scripts/check-registry-safety.mjs",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "release": "semantic-release"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.2",
@@ -45,7 +47,14 @@
     "turndown": "^7.2.0"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.6",
+    "@semantic-release/npm": "^13.1.4",
+    "@semantic-release/release-notes-generator": "^14.1.0",
     "@vitest/coverage-v8": "^3.2.4",
+    "semantic-release": "^25.0.3",
     "vitest": "^3.2.4"
   }
 }

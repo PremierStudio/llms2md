@@ -4,6 +4,7 @@ Turn any `llms.txt` into a clean local Markdown docs tree.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/PremierStudio/llms2md/ci.yml?branch=main&label=ci)](https://github.com/PremierStudio/llms2md/actions/workflows/ci.yml)
 [![Registry Review](https://img.shields.io/github/actions/workflow/status/PremierStudio/llms2md/registry-pr-review.yml?branch=main&label=registry%20review)](https://github.com/PremierStudio/llms2md/actions/workflows/registry-pr-review.yml)
+[![Release](https://img.shields.io/github/actions/workflow/status/PremierStudio/llms2md/release.yml?branch=main&label=release)](https://github.com/PremierStudio/llms2md/actions/workflows/release.yml)
 [![Node >=20.12](https://img.shields.io/badge/node-%3E%3D20.12-5FA04E?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Coverage 100%](https://img.shields.io/badge/coverage-100%25-00C853)](./coverage/)
 [![License MIT](https://img.shields.io/github/license/PremierStudio/llms2md)](./LICENSE)
@@ -228,6 +229,38 @@ When a pull request changes `sources.txt`, the `Codex Registry Review` workflow:
 - posts a review update directly on the PR
 
 This keeps the registry useful without blindly accepting URLs.
+
+## npm Release Automation
+
+This repo is set up for automatic npm publishing from GitHub Actions using npm trusted publishing with OIDC.
+
+Release flow:
+
+1. Merge a release-worthy change into `main`
+2. GitHub Actions runs the `Release` workflow
+3. `semantic-release` determines the next version from commit history
+4. The package is published to npm
+5. GitHub release notes and changelog updates are generated automatically
+
+Versioning is driven by Conventional Commits on the merge commit or squash-merge title.
+
+Examples:
+
+- `feat: add source search in interactive mode`
+- `fix: preserve relative url paths when flattening`
+- `docs: clarify npm trusted publishing setup`
+
+The release workflow is intentionally gated behind the `NPM_PUBLISH_ENABLED` repository variable so the repo can be configured safely before the first live publish.
+
+### One-Time npm Setup
+
+Because npm trusted publishing can only be configured after the package already exists on npm, the initial bootstrap is:
+
+1. Publish `llms2md` once manually
+2. Register `PremierStudio/llms2md` and `.github/workflows/release.yml` as the trusted publisher
+3. Enable the `NPM_PUBLISH_ENABLED=true` repository variable
+
+After that, all future releases can happen from GitHub Actions without a long-lived npm token.
 
 ## Local Development
 

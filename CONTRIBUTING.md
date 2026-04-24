@@ -28,6 +28,24 @@ slug|Label|https://example.com/llms.txt
 3. The automated registry review workflow will fetch the URL and leave a PR update.
 4. If the review flags the URL as unsafe or suspicious, fix the URL or explain why it is still valid.
 
+## Release Notes And Versioning
+
+This repository is set up for automated npm releases from `main`.
+
+To make that reliable, use Conventional Commits in merge commits or squash-merge titles when shipping changes that should affect versioning.
+
+Examples:
+
+- `feat: add support for custom local llms.txt paths`
+- `fix: preserve markdown output for .html.md responses`
+- `docs: improve install examples`
+
+Version semantics:
+
+- `fix:` -> patch
+- `feat:` -> minor
+- `feat!:` or `BREAKING CHANGE:` -> major
+
 ## Local Checks
 
 Install dependencies and run the basic checks:
