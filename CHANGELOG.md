@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/PremierStudio/llms2md/compare/v1.2.1...v1.3.0) (2026-04-25)
+
+
+### Features
+
+* add unsloth llms provider to curated sources ([c83a33c](https://github.com/PremierStudio/llms2md/commit/c83a33c122bb5099e0563df85606a171859c60af))
+
 ## [1.2.1](https://github.com/PremierStudio/llms2md/compare/v1.2.0...v1.2.1) (2026-04-24)
 
 
