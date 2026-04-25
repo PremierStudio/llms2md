@@ -242,6 +242,7 @@ The built-in source list lives in `sources.txt` and currently includes:
 | `nextjs` | Next.js Docs | `https://nextjs.org/llms.txt` |
 | `stripe` | Stripe Docs | `https://docs.stripe.com/llms.txt` |
 | `supabase` | Supabase Docs | `https://supabase.com/llms.txt` |
+| `unsloth` | Unsloth Docs | `https://unsloth.ai/docs/llms.txt` |
 | `vite` | Vite Docs | `https://vite.dev/llms.txt` |
 
 ## Contributing New Sources
