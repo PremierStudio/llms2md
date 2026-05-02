@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/PremierStudio/llms2md/compare/v1.4.0...v1.4.1) (2026-05-02)
+
+
+### Bug Fixes
+
+* retry publish after failed 1.4.0 release ([7e7f3ed](https://github.com/PremierStudio/llms2md/commit/7e7f3edc2eeadfd27e602c6ad9c2bb8ec5e00f1e))
+
 # [1.4.0](https://github.com/PremierStudio/llms2md/compare/v1.3.0...v1.4.0) (2026-05-02)
 
 
