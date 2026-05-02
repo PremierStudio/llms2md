@@ -157,6 +157,7 @@ CLI behavior:
 
 - fresh installs default to all docs
 - if the target directory already contains a managed install for the same source, CLI updates reuse the previous selected doc set
+- if the target directory already contains managed installs for other sources, `llms2md` writes the new source into its own subdirectory automatically
 - `--dry-run` fetches and compares without writing files
 
 ## How It Works
@@ -183,6 +184,8 @@ ${url}.html.md
 
 When `llms2md` writes into a directory, it also stores a hidden `.llms2md.json` manifest so future runs can safely understand which files it manages.
 
+One output directory can contain multiple managed sources. The first source keeps the layout you asked for, and any additional sources are written into their own subdirectories so files and update tracking stay isolated.
+
 ## Output Behavior
 
 Default mode preserves URL structure:
@@ -197,6 +200,13 @@ Flat mode writes everything at the root:
 ./docs-flat/auth-guide.md
 ./docs-flat/reference.md
 ./docs-flat/api-auth.md
+```
+
+If you install another source into the same directory later, it is automatically namespaced:
+
+```text
+./docs/pages/guide.md
+./docs/supabase/guide/auth.md
 ```
 
 ## Selection And Updating
@@ -234,16 +244,31 @@ The built-in source list lives in `sources.txt` and currently includes:
 
 | Slug | Source | URL |
 | --- | --- | --- |
+| `angular` | Angular Docs | `https://angular.dev/llms.txt` |
 | `bruno` | Bruno Docs | `https://docs.usebruno.com/llms.txt` |
+| `bun` | Bun Docs | `https://bun.sh/llms.txt` |
 | `claude` | Claude Docs | `https://platform.claude.com/llms.txt` |
 | `cloudflare` | Cloudflare Docs | `https://developers.cloudflare.com/llms.txt` |
+| `deno` | Deno Docs | `https://docs.deno.com/llms.txt` |
+| `docker` | Docker Docs | `https://docs.docker.com/llms.txt` |
+| `expo` | Expo Docs | `https://docs.expo.dev/llms.txt` |
 | `github` | GitHub Docs | `https://docs.github.com/llms.txt` |
 | `mcp` | Model Context Protocol Docs | `https://modelcontextprotocol.io/llms.txt` |
 | `nextjs` | Next.js Docs | `https://nextjs.org/llms.txt` |
+| `nuxt` | Nuxt Docs | `https://nuxt.com/llms.txt` |
+| `openai` | OpenAI Docs | `https://developers.openai.com/llms.txt` |
+| `prisma` | Prisma Docs | `https://www.prisma.io/docs/llms.txt` |
+| `pydantic` | Pydantic Docs | `https://pydantic.dev/llms.txt` |
+| `react` | React Docs | `https://react.dev/llms.txt` |
+| `react-native` | React Native Docs | `https://reactnative.dev/llms.txt` |
 | `stripe` | Stripe Docs | `https://docs.stripe.com/llms.txt` |
 | `supabase` | Supabase Docs | `https://supabase.com/llms.txt` |
 | `unsloth` | Unsloth Docs | `https://unsloth.ai/docs/llms.txt` |
+| `svelte` | Svelte Docs | `https://svelte.dev/llms.txt` |
+| `twilio` | Twilio Docs | `https://www.twilio.com/llms.txt` |
+| `vercel` | Vercel Docs | `https://vercel.com/llms.txt` |
 | `vite` | Vite Docs | `https://vite.dev/llms.txt` |
+| `vue` | Vue Docs | `https://vuejs.org/llms.txt` |
 
 ## Contributing New Sources
 

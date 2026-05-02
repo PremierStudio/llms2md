@@ -1,11 +1,26 @@
 # slug|label|url
+angular|Angular Docs|https://angular.dev/llms.txt
 bruno|Bruno Docs|https://docs.usebruno.com/llms.txt
+bun|Bun Docs|https://bun.sh/llms.txt
 claude|Claude Docs|https://platform.claude.com/llms.txt
 cloudflare|Cloudflare Docs|https://developers.cloudflare.com/llms.txt
+deno|Deno Docs|https://docs.deno.com/llms.txt
+docker|Docker Docs|https://docs.docker.com/llms.txt
+expo|Expo Docs|https://docs.expo.dev/llms.txt
 github|GitHub Docs|https://docs.github.com/llms.txt
 mcp|Model Context Protocol Docs|https://modelcontextprotocol.io/llms.txt
 nextjs|Next.js Docs|https://nextjs.org/llms.txt
+nuxt|Nuxt Docs|https://nuxt.com/llms.txt
+openai|OpenAI Docs|https://developers.openai.com/llms.txt
+prisma|Prisma Docs|https://www.prisma.io/docs/llms.txt
+pydantic|Pydantic Docs|https://pydantic.dev/llms.txt
+react|React Docs|https://react.dev/llms.txt
+react-native|React Native Docs|https://reactnative.dev/llms.txt
 stripe|Stripe Docs|https://docs.stripe.com/llms.txt
 supabase|Supabase Docs|https://supabase.com/llms.txt
 unsloth|Unsloth Docs|https://unsloth.ai/docs/llms.txt
+svelte|Svelte Docs|https://svelte.dev/llms.txt
+twilio|Twilio Docs|https://www.twilio.com/llms.txt
+vercel|Vercel Docs|https://vercel.com/llms.txt
 vite|Vite Docs|https://vite.dev/llms.txt
+vue|Vue Docs|https://vuejs.org/llms.txt
