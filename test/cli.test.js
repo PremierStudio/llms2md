@@ -360,6 +360,8 @@ describe("source resolution and registry loading", () => {
     expect(await cli.directoryHasManagedCandidates(tempDir)).toBe(true);
     expect(cli.isManagedInstallForSource(manifest, source)).toBe(true);
     expect(cli.isManagedInstallForSource(null, source)).toBe(false);
+    expect(cli.isManagedInstallForSource({ pathPrefix: "legacy-prefix" }, source)).toBe(false);
+    expect(cli.isManagedInstallForSource({ version: 2 }, source)).toBe(false);
 
     await cli.writeInstallManifest(tempDir, manifest);
     const state = await cli.inspectInstallState(tempDir, source, "cli");
@@ -412,6 +414,105 @@ describe("source resolution and registry loading", () => {
     const fallbackState = await cli.inspectInstallState(path.join(tempDir, "fallback"), source, "cli");
     expect(fallbackState.cancelled).toBe(false);
     expect(fallbackState.pathPrefix).toBe("example-com");
+  });
+
+  it("reuses stored path prefixes and bumps new ones when the target path is occupied", async () => {
+    const tempDir = await createTempDir();
+    const source = { label: "Supabase", url: new URL("https://supabase.com/llms.txt") };
+
+    await cli.writeInstallManifest(tempDir, {
+      generatedAt: new Date().toISOString(),
+      installs: [
+        {
+          layout: "nested",
+          managedFiles: ["supabase/pages/guide.md"],
+          pathPrefix: "supabase",
+          selectedUrls: [],
+          source: { label: "Supabase", url: source.url.href },
+        },
+      ],
+      version: 2,
+    });
+
+    const sameSourceState = await cli.inspectInstallState(tempDir, source, "cli");
+    expect(sameSourceState.sameSource).toBe(true);
+    expect(sameSourceState.pathPrefix).toBe("supabase");
+
+    const otherSource = { label: "Example", url: new URL("https://example.com/llms.txt") };
+    await fs.mkdir(path.join(tempDir, "example-com"), { recursive: true });
+    const otherState = await cli.inspectInstallState(tempDir, otherSource, "cli");
+    expect(otherState.sameSource).toBe(false);
+    expect(otherState.pathPrefix).toBe("example-com-2");
+  });
+
+  it("normalizes install records for both populated and fallback shapes", () => {
+    expect(cli.normalizeInstallRecordForWrite(null)).toEqual({
+      layout: "nested",
+      managedFiles: [],
+      pathPrefix: "",
+      selectedUrls: [],
+      source: {},
+    });
+
+    expect(
+      cli.normalizeInstallRecordForWrite({
+        layout: "flat",
+        managedFiles: ["b.md", 1, "a.md", "b.md"],
+        pathPrefix: "supabase",
+        selectedUrls: ["https://example.com/b", null, "https://example.com/a", "https://example.com/b"],
+        source: { label: "Example", url: "https://example.com/llms.txt" },
+      }),
+    ).toEqual({
+      layout: "flat",
+      managedFiles: ["a.md", "b.md"],
+      pathPrefix: "supabase",
+      selectedUrls: ["https://example.com/b", "https://example.com/a"],
+      source: { label: "Example", url: "https://example.com/llms.txt" },
+    });
+  });
+
+  it("derives default install prefixes from slug, remote host, and local path", () => {
+    expect(
+      cli.defaultInstallPathPrefix({
+        slug: "supabase",
+        url: new URL("https://supabase.com/llms.txt"),
+      }),
+    ).toBe("supabase");
+
+    expect(
+      cli.defaultInstallPathPrefix({
+        slug: null,
+        url: new URL("https://docs.example.com/llms.txt"),
+      }),
+    ).toBe("docs-example-com");
+
+    expect(
+      cli.defaultInstallPathPrefix({
+        slug: null,
+        url: pathToFileURL("/tmp/project/llms.txt"),
+      }),
+    ).toBe("llms");
+
+    expect(
+      cli.defaultInstallPathPrefix({
+        slug: "!!!",
+        url: new URL("https://supabase.com/llms.txt"),
+      }),
+    ).toBe("docs");
+
+    expect(
+      cli.defaultInstallPathPrefix({
+        slug: null,
+        url: { hostname: "...", protocol: "https:" },
+      }),
+    ).toBe("docs");
+
+    expect(
+      cli.defaultInstallPathPrefix({
+        slug: null,
+        url: pathToFileURL("/tmp/!!!/---"),
+      }),
+    ).toBe("docs");
   });
 
   it("resolves selection state for cli and tui flows", async () => {
@@ -551,6 +652,24 @@ describe("source resolution and registry loading", () => {
 
     const result = await cli.resolveInteractiveRunOptions([]);
     expect(result).toBeNull();
+  });
+
+  it("returns cancelled from prepareImportState when install inspection cancels", async () => {
+    const tempDir = await createTempDir();
+    const inputPath = path.join(tempDir, "llms.txt");
+    const outputDir = path.join(tempDir, "docs");
+
+    await writeFile(inputPath, "[Guide](./pages/guide)\n");
+    await writeFile(path.join(tempDir, "pages", "guide.md"), "# Guide\n");
+    await writeFile(path.join(outputDir, "notes.md"), "# Existing\n");
+    vi.mocked(prompts.confirm).mockResolvedValueOnce(false);
+
+    const prepared = await cli.prepareImportState(
+      { allowExternalHosts: false, dryRun: false, flat: false, input: inputPath, mode: "tui", outputDir },
+      [],
+    );
+
+    expect(prepared).toEqual({ cancelled: true });
   });
 });
 
@@ -729,6 +848,33 @@ describe("interactive flow", () => {
     expect(logSpy).toHaveBeenCalled();
   });
 
+  it("returns null when preflight cancels before the start prompt", async () => {
+    setTTY(true, true);
+    const tempDir = await createTempDir();
+    const inputPath = path.join(tempDir, "llms.txt");
+    const outputDir = path.join(tempDir, "docs");
+
+    await writeFile(inputPath, "[Guide](./pages/guide)\n");
+    await writeFile(path.join(tempDir, "pages", "guide.md"), "# Guide\n");
+    await writeFile(path.join(outputDir, "notes.md"), "# Existing\n");
+
+    vi.mocked(prompts.select)
+      .mockResolvedValueOnce(cli.CUSTOM_SOURCE)
+      .mockResolvedValueOnce(cli.CUSTOM_DIRECTORY);
+    vi.mocked(prompts.input)
+      .mockResolvedValueOnce(inputPath)
+      .mockResolvedValueOnce(outputDir);
+    vi.mocked(prompts.confirm)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const result = await cli.resolveInteractiveRunOptions([]);
+
+    expect(result).toBeNull();
+    expect(logSpy).toHaveBeenCalled();
+  });
+
   it("chooses docs manually and supports review actions", async () => {
     const entries = [
       { title: "One", url: new URL("https://example.com/one") },
@@ -824,6 +970,22 @@ describe("import execution", () => {
 
     expect(result).toEqual({ failureCount: 0, successCount: 1 });
     expect(logSpy).toHaveBeenCalled();
+  });
+
+  it("returns cancelled immediately when provided a cancelled prepared state", async () => {
+    const result = await cli.runImport(
+      {
+        dryRun: false,
+        flat: false,
+        input: "ignored",
+        mode: "cli",
+        outputDir: "/tmp/out",
+        preparedState: { cancelled: true },
+      },
+      [],
+    );
+
+    expect(result).toEqual({ cancelled: true, failureCount: 0, successCount: 0 });
   });
 
   it("writes a second source into an isolated prefix during tui installs", async () => {
