@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/PremierStudio/llms2md/compare/v1.3.0...v1.4.0) (2026-05-02)
+
+
+### Features
+
+* support multi-source installs and expand curated sources ([3220bda](https://github.com/PremierStudio/llms2md/commit/3220bda8175bcd1b2468a154dd35e4f60dd54f83))
+
 # [1.3.0](https://github.com/PremierStudio/llms2md/compare/v1.2.1...v1.3.0) (2026-04-25)
 
 
